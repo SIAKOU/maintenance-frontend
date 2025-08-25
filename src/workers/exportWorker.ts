@@ -26,14 +26,11 @@ self.onmessage = async (e: MessageEvent<ExportMessage>) => {
   const { type, payload } = e.data || {};
   try {
     if (type === 'pdf') {
-      // @ts-expect-error jsPDF types are not complete
-      const jsPDFModule = await import('jspdf');
-      const jsPDF = jsPDFModule.default || jsPDFModule;
-      const doc = new jsPDF();
+  const { default: jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
       doc.text(payload.title || 'Export', 14, 16);
       if (Array.isArray(payload.rows)) {
-        // @ts-expect-error autoTable is added by the jspdf-autotable plugin
-        doc.autoTable({
+        (doc as any).autoTable({
           head: [payload.headers || []],
           body: payload.rows,
         });
@@ -41,7 +38,6 @@ self.onmessage = async (e: MessageEvent<ExportMessage>) => {
       const blob = doc.output('blob');
       self.postMessage({ ok: true, type: 'pdf', blob } satisfies ExportResponse);
     } else if (type === 'xlsx') {
-      // @ts-expect-error XLSX types need to be imported dynamically
       const XLSX = await import('xlsx');
       const worksheet = XLSX.utils.json_to_sheet(payload.rows || []);
       const workbook = XLSX.utils.book_new();

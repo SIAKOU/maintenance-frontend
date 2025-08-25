@@ -65,12 +65,20 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api, Report as ApiReport, Machine as ApiMachine } from "@/lib/api";
 import { loadPapaParse } from "@/lib/lazyExports";
-// @ts-expect-error Worker import with Vite
 import ExportWorker from '@/workers/exportWorker.ts?worker&inline';
 import { getImageUrl } from '@/lib/api';
+import { ReportGallery } from '@/components/reports/ReportGallery';
 
 // --- TYPES & SCHÉMAS ---
-type Report = ApiReport;
+type Attachment = {
+  id: number;
+  category: 'image' | 'document' | 'video';
+  url: string;
+  filename: string;
+  type: string;
+  size: number;
+};
+type Report = ApiReport & { attachments?: Attachment[] };
 type ReportsApiResponse = { reports: Report[] } | Report[];
 type MachinesResponse = { machines: ApiMachine[] };
 const createReportSchema = z.object({
@@ -1074,6 +1082,12 @@ const EditReportModal = ({
                 </FormItem>
               )}
             />
+            {/* Ajout de la galerie */}
+            <div className="pt-4 border-t">
+              <h3 className="font-semibold mb-4">Pièces jointes</h3>
+              <ReportGallery attachments={report.attachments || []} />
+            </div>
+
             <DialogFooter className="pt-4">
               <DialogClose asChild>
                 <Button type="button" variant="outline">
@@ -1092,149 +1106,4 @@ const EditReportModal = ({
 };
 
 // --- Galerie d'images avec lightbox améliorée ---
-interface Attachment {
-  id: number;
-  category: 'image' | 'document' | 'video';
-  url: string;
-  filename: string;
-  type: string;
-  size: number;
-}
-
-const ReportDetailGallery = ({ attachments }: { attachments: Attachment[] }) => {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const images = attachments.filter(a => a.category === 'image');
-  
-  const handleKeyDown = React.useCallback((e: KeyboardEvent) => {
-    if (lightboxIndex === null) return;
-    
-    switch (e.key) {
-      case 'Escape':
-        setLightboxIndex(null);
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        setLightboxIndex((lightboxIndex + 1) % images.length);
-        break;
-    }
-  }, [lightboxIndex, images.length]);
-
-  // Effet pour gérer les événements clavier
-  React.useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  if (images.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p>Aucune image attachée</p>
-      </div>
-    );
-  }
-        e.preventDefault();
-        setLightboxIndex((lightboxIndex + 1) % images.length);
-        break;
-    }
-  };
-
-  React.useEffect(() => {
-    if (lightboxIndex !== null) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
-    };
-  }, [lightboxIndex]);
-
-  return (
-    <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
-        {images.map((img, idx) => (
-          <button 
-            key={img.id} 
-            type="button" 
-            onClick={() => setLightboxIndex(idx)} 
-            className="focus:outline-none group relative overflow-hidden rounded-lg"
-          >
-            <img 
-              src={getImageUrl(img.path)} 
-              alt={img.originalName} 
-              className="w-full h-32 object-cover transition-transform duration-200 group-hover:scale-105" 
-              onError={(e) => {
-                e.currentTarget.src = '/placeholder.svg';
-                e.currentTarget.alt = 'Image non disponible';
-              }}
-            />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-      
-      {lightboxIndex !== null && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90" 
-          onClick={() => setLightboxIndex(null)}
-        >
-          <button 
-            className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 transition-colors p-2" 
-            onClick={() => setLightboxIndex(null)}
-          >
-            ✕
-          </button>
-          
-          <button 
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-3xl hover:text-gray-300 transition-colors p-2" 
-            onClick={e => { 
-              e.stopPropagation(); 
-              setLightboxIndex((lightboxIndex - 1 + images.length) % images.length); 
-            }}
-          >
-            ‹
-          </button>
-          
-          <div className="relative max-h-[80vh] max-w-[90vw]">
-            <img 
-              src={getImageUrl(images[lightboxIndex].path)} 
-              alt={images[lightboxIndex].originalName} 
-              className="max-h-[80vh] max-w-[90vw] rounded shadow-lg object-contain"
-              onError={(e) => {
-                e.currentTarget.src = '/placeholder.svg';
-                e.currentTarget.alt = 'Image non disponible';
-              }}
-            />
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-3 py-1 rounded text-sm">
-              {lightboxIndex + 1} / {images.length}
-            </div>
-          </div>
-          
-          <button 
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-3xl hover:text-gray-300 transition-colors p-2" 
-            onClick={e => { 
-              e.stopPropagation(); 
-              setLightboxIndex((lightboxIndex + 1) % images.length); 
-            }}
-          >
-            ›
-          </button>
-        </div>
-      )}
-    </>
-  );
-};
-
 export default Reports;

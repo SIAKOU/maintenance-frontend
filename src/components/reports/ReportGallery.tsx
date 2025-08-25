@@ -14,7 +14,7 @@ interface ReportGalleryProps {
   attachments: Attachment[];
 }
 
-export const ReportDetailGallery: React.FC<ReportGalleryProps> = ({ attachments }) => {
+export const ReportGallery: React.FC<ReportGalleryProps> = ({ attachments }) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const images = attachments.filter(a => a.category === 'image');
   
