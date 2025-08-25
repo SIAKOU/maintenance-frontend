@@ -42,12 +42,16 @@ const localIP = getLocalExternalIP();
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiBaseUrl = env.VITE_API_BASE_URL || `http://${getLocalIP()}:5000/api`;
+  const backendBase = env.VITE_BACKEND_URL || `http://${getLocalIP()}:5000`;
+  const apiBaseUrl = backendBase; // Proxy cible sans /api; voir rewrite ci-dessous
 
   return {
+    worker: {
+      format: 'es'
+    },
     server: {
       host: "0.0.0.0",
-      port: parseInt(env.VITE_PORT || "8080"),
+      port: parseInt(env.VITE_PORT || "8081"),
       strictPort: true,
       open: false,
       hmr: {
@@ -64,7 +68,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
-      port: 8080,
+      port: 8081,
       host: "0.0.0.0",
     },
     plugins: [
@@ -130,6 +134,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'import.meta.env.VITE_API_URL': JSON.stringify(`http://${localIP}:5000/api`),
+      'import.meta.env.VITE_BACKEND_URL': JSON.stringify(`http://${localIP}:5000`),
     },
   };
 });

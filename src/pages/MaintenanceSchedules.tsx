@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Filter, Search, Clock, AlertTriangle, CheckCircle, XCircle, Edit, Trash2, Eye } from 'lucide-react';
+import { Calendar, Plus, Search, Clock, AlertTriangle, CheckCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import CreateMaintenanceModal from '@/components/maintenance/CreateMaintenanceModal';
@@ -31,8 +29,8 @@ interface MaintenanceSchedule {
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'overdue';
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-  checklist?: any[];
-  required_parts?: any[];
+  checklist?: Array<{ task: string; completed: boolean }>;
+  required_parts?: Array<{ name: string; quantity: number; cost: number }>;
   estimated_cost: number;
   actual_cost: number;
   notes?: string;
@@ -81,9 +79,9 @@ const MaintenanceSchedules: React.FC = () => {
     try {
       setLoading(true);
       const [schedulesRes, machinesRes, techniciansRes] = await Promise.all([
-        api.get<any>('/maintenance-schedules'),
-        api.get<any>('/machines'),
-        api.get<any>('/users?role=technician')
+        api.get<{ data: MaintenanceSchedule[] }>('/maintenance-schedules'),
+        api.get<{ data: Machine[] }>('/machines'),
+        api.get<{ data: User[] }>('/users?role=technician')
       ]);
 
       setSchedules(schedulesRes.data || []);

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { keepPreviousData } from "@tanstack/react-query"; // **CORRECTION 1: Importation pour la v5**
 import {
@@ -113,6 +113,20 @@ const Machines = () => {
         title: "Erreur",
         description: err.message || "Impossible de créer la machine.",
       });
+    },
+  });
+
+  // Ajout de la mutation pour modifier le statut d'une machine
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      return api.patch(`machines/${id}/status`, { status });
+    },
+    onSuccess: () => {
+      toast({ title: "Statut modifié", description: "Le statut de la machine a été mis à jour." });
+      queryClient.invalidateQueries({ queryKey: ["machines"] });
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Erreur", description: err.message || "Impossible de modifier le statut." });
     },
   });
 
@@ -416,33 +430,49 @@ const Machines = () => {
             </AlertDescription>
           </Alert>
         ) : machines.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 overflow-x-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {machines.map((machine) => (
-              <Card key={machine.id}>
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={machine.image} />
-                      <AvatarFallback>{machine.name?.[0] || "?"}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle>{machine.name}</CardTitle>
-                      <CardDescription>{machine.reference}</CardDescription>
-                    </div>
+              <Card key={machine.id} className="rounded-xl shadow-md hover:shadow-xl transition-shadow duration-200 border border-gray-200 bg-white flex flex-col">
+                <div className="flex flex-col items-center p-4 pb-0">
+                  <Avatar className="h-20 w-20 mb-2 shadow border-2 border-blue-100">
+                    <AvatarImage src={machine.image} alt={machine.name} className="object-cover" />
+                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-2xl">{machine.name?.[0] || "?"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col items-center">
+                    <span className="text-lg font-bold text-gray-900">{machine.name}</span>
+                    <span className="text-xs text-gray-500">Réf: {machine.reference}</span>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <div>Statut : {machine.status}</div>
-                      <div>Localisation : {machine.location}</div>
-                      <div>Département : {machine.department}</div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
-                      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => handleShowDetails(machine)}>
-                        Voir détails
-                      </Button>
-                    </div>
+                  <div className="flex gap-2 mt-2">
+                    <Badge className={getPriorityColor(machine.priority)}>{machine.priority}</Badge>
+                    <Badge className={getStatusColor(machine.status)}>{getStatusLabel(machine.status)}</Badge>
+                  </div>
+                </div>
+                <CardContent className="flex-1 flex flex-col justify-between p-4 pt-2">
+                  <div className="grid grid-cols-1 gap-2 text-sm text-gray-700">
+                    <div><span className="font-medium text-gray-500">Département:</span> {machine.department}</div>
+                    <div><span className="font-medium text-gray-500">Localisation:</span> {machine.location}</div>
+                    <div><span className="font-medium text-gray-500">Dernière maintenance:</span> {machine.lastMaintenanceDate ? new Date(machine.lastMaintenanceDate).toLocaleDateString() : "N/A"}</div>
+                    <div><span className="font-medium text-gray-500">Prochaine maintenance:</span> {machine.nextMaintenanceDate ? new Date(machine.nextMaintenanceDate).toLocaleDateString() : "N/A"}</div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+                    <Select
+                      value={machine.status}
+                      onValueChange={(value) => updateStatusMutation.mutate({ id: machine.id, status: value })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="operational">Opérationnel</SelectItem>
+                        <SelectItem value="maintenance">En maintenance</SelectItem>
+                        <SelectItem value="breakdown">En panne</SelectItem>
+                        <SelectItem value="retired">Retiré</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => handleShowDetails(machine)}>
+                      Voir détails
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -509,105 +539,6 @@ const StatCard = ({
   );
 };
 
-const MachineCard = ({ machine }: { machine: Machine }) => {
-  const getStatusLabel = (status: string) =>
-    ({
-      operational: "Opérationnel",
-      maintenance: "En maintenance",
-      breakdown: "En panne",
-      retired: "Retiré",
-    }[status] || status);
-  const getStatusColor = (status: string) =>
-    ({
-      operational: "bg-green-100 text-green-800",
-      maintenance: "bg-yellow-100 text-yellow-800",
-      breakdown: "bg-red-100 text-red-800",
-      retired: "bg-gray-100 text-gray-800",
-    }[status] || "bg-gray-100 text-gray-800");
-  const getPriorityColor = (priority: string) =>
-    ({
-      low: "bg-green-100 text-green-800",
-      medium: "bg-yellow-100 text-yellow-800",
-      high: "bg-orange-100 text-orange-800",
-      critical: "bg-red-100 text-red-800",
-    }[priority] || "bg-gray-100 text-gray-800");
-  return (
-    <Card className="hover:shadow-md transition-shadow duration-200">
-      <CardHeader>
-        <div className="flex justify-between items-start gap-2">
-          <div className="flex-1">
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600 flex-shrink-0" />
-              <span>{machine.name}</span>
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {machine.reference} • {machine.brand} {machine.model}
-            </CardDescription>
-          </div>
-          {machine.image && (
-            <Avatar className="h-12 w-12 flex-shrink-0">
-              <AvatarImage 
-                src={getImageUrl(machine.image)} 
-                alt={machine.name}
-                className="object-cover"
-              />
-              <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
-                {machine.name?.[0] || "?"}
-              </AvatarFallback>
-            </Avatar>
-          )}
-          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-            <Badge className={getPriorityColor(machine.priority)}>
-              {machine.priority}
-            </Badge>
-            <Badge className={getStatusColor(machine.status)}>
-              {getStatusLabel(machine.status)}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center text-sm text-gray-600">
-          <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
-          <span>{machine.location}</span>
-        </div>
-        <div className="border-t pt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <div>
-            <span className="text-gray-500">Département:</span>
-            <div className="font-medium">{machine.department}</div>
-          </div>
-          <div>
-            <span className="text-gray-500">Interventions:</span>
-            <div className="font-medium">{machine.interventionsCount || "N/A"}</div>
-          </div>
-          <div>
-            <span className="text-gray-500">Dernière maint.:</span>
-            <div className="font-medium">
-              {machine.lastMaintenanceDate
-                ? new Date(machine.lastMaintenanceDate).toLocaleDateString()
-                : "N/A"}
-            </div>
-          </div>
-          <div>
-            <span className="text-gray-500">Prochaine maint.:</span>
-            <div className="font-medium">
-              {machine.nextMaintenanceDate
-                ? new Date(machine.nextMaintenanceDate).toLocaleDateString()
-                : "N/A"}
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end space-x-2 pt-2">
-          <Button variant="outline" size="sm">
-            Voir détails
-          </Button>
-          <Button size="sm">Planifier</Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
 const MachineCardSkeleton = () => (
   <Card>
     <CardHeader>
@@ -640,39 +571,172 @@ const MachineCardSkeleton = () => (
 
 // --- Modal de détails de machine ---
 const MachineDetailModal = ({ isOpen, onClose, machine }: { isOpen: boolean; onClose: () => void; machine: Machine | null }) => {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<Partial<Machine>>({});
+  // Redéfinir les helpers ici pour éviter l'erreur
+  const getStatusLabel = (status: string) =>
+    ({
+      operational: "Opérationnel",
+      maintenance: "En maintenance",
+      breakdown: "En panne",
+      retired: "Retiré",
+    }[status] || status);
+  const getStatusColor = (status: string) =>
+    ({
+      operational: "bg-green-100 text-green-800",
+      maintenance: "bg-yellow-100 text-yellow-800",
+      breakdown: "bg-red-100 text-red-800",
+      retired: "bg-gray-100 text-gray-800",
+    }[status] || "bg-gray-100 text-gray-800");
+  const getPriorityColor = (priority: string) =>
+    ({
+      low: "bg-green-100 text-green-800",
+      medium: "bg-yellow-100 text-yellow-800",
+      high: "bg-orange-100 text-orange-800",
+      critical: "bg-red-100 text-red-800",
+    }[priority] || "bg-gray-100 text-gray-800");
+  const { mutate: updateMachine, isPending } = useMutation({
+    mutationFn: async (data: Partial<Machine>) => {
+      return api.patch(`machines/${machine?.id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Modifications enregistrées", description: "La machine a été mise à jour." });
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["machines"] });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Erreur", description: err.message || "Impossible de modifier la machine." });
+    },
+  });
+  useEffect(() => {
+    if (machine) setForm(machine);
+  }, [machine]);
   if (!machine) return null;
+  const imageUrl = machine.image;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  };
+  const handleSave = () => {
+    updateMachine(form);
+  };
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Détails de la machine</DialogTitle>
+          <DialogDescription>
+            Consultez ou modifiez les informations de la machine sélectionnée.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4">
-          <Avatar className="h-32 w-32">
-            <AvatarImage 
-              src={getImageUrl(machine.image)} 
-              alt={machine.name}
-              className="object-cover"
-            />
-            <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-2xl">
-              {machine.name?.[0] || "?"}
-            </AvatarFallback>
+          <Avatar className="h-32 w-32 shadow border-2 border-blue-100">
+            {imageUrl ? (
+              <AvatarImage 
+                src={imageUrl}
+                alt={machine.name}
+                className="object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold text-2xl">
+                {machine.name?.[0] || "?"}
+              </AvatarFallback>
+            )}
           </Avatar>
-          <div className="w-full space-y-2">
-            <div><b>Nom :</b> {machine.name}</div>
-            <div><b>Référence :</b> {machine.reference}</div>
-            <div><b>Marque :</b> {machine.brand}</div>
-            <div><b>Modèle :</b> {machine.model}</div>
-            <div><b>Numéro de série :</b> {machine.serialNumber}</div>
-            <div><b>Localisation :</b> {machine.location}</div>
-            <div><b>Département :</b> {machine.department}</div>
-            <div><b>Description :</b> {machine.description}</div>
-            <div><b>Date d'installation :</b> {machine.installationDate}</div>
-            <div><b>Fin de garantie :</b> {machine.warrantyEndDate}</div>
-            <div><b>Statut :</b> {machine.status}</div>
-            <div><b>Priorité :</b> {machine.priority}</div>
-            <div><b>Dernière maintenance :</b> {machine.lastMaintenanceDate}</div>
-            <div><b>Prochaine maintenance :</b> {machine.nextMaintenanceDate}</div>
+          <div className="w-full space-y-3 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Nom</label>
+                {isEditing ? (
+                  <input name="name" value={form.name || ""} onChange={handleChange} className="input input-bordered w-full" />
+                ) : (
+                  <div className="font-bold text-lg text-gray-900">{machine.name}</div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Référence</label>
+                {isEditing ? (
+                  <input name="reference" value={form.reference || ""} onChange={handleChange} className="input input-bordered w-full" />
+                ) : (
+                  <div className="text-gray-700">{machine.reference}</div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Statut</label>
+                {isEditing ? (
+                  <select name="status" value={form.status} onChange={handleChange} className="input input-bordered w-full">
+                    <option value="operational">Opérationnel</option>
+                    <option value="maintenance">En maintenance</option>
+                    <option value="breakdown">En panne</option>
+                    <option value="retired">Retiré</option>
+                  </select>
+                ) : (
+                  <Badge className={getStatusColor(machine.status)}>{getStatusLabel(machine.status)}</Badge>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Priorité</label>
+                {isEditing ? (
+                  <select name="priority" value={form.priority} onChange={handleChange} className="input input-bordered w-full">
+                    <option value="low">Faible</option>
+                    <option value="medium">Moyenne</option>
+                    <option value="high">Élevée</option>
+                    <option value="critical">Critique</option>
+                  </select>
+                ) : (
+                  <Badge className={getPriorityColor(machine.priority)}>{machine.priority}</Badge>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Localisation</label>
+                {isEditing ? (
+                  <input name="location" value={form.location || ""} onChange={handleChange} className="input input-bordered w-full" />
+                ) : (
+                  <div>{machine.location}</div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Département</label>
+                {isEditing ? (
+                  <input name="department" value={form.department || ""} onChange={handleChange} className="input input-bordered w-full" />
+                ) : (
+                  <div>{machine.department}</div>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Description</label>
+                {isEditing ? (
+                  <textarea name="description" value={form.description || ""} onChange={handleChange} className="input input-bordered w-full" />
+                ) : (
+                  <div className="text-gray-700 whitespace-pre-line">{machine.description}</div>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div>
+                <span className="text-xs text-gray-500">Dernière maintenance :</span>
+                <div className="font-medium">{machine.lastMaintenanceDate ? new Date(machine.lastMaintenanceDate).toLocaleDateString() : "N/A"}</div>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500">Prochaine maintenance :</span>
+                <div className="font-medium">{machine.nextMaintenanceDate ? new Date(machine.nextMaintenanceDate).toLocaleDateString() : "N/A"}</div>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-6 w-full">
+            {isEditing ? (
+              <>
+                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isPending}>Annuler</Button>
+                <Button onClick={handleSave} disabled={isPending}>
+                  {isPending ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)}>Modifier</Button>
+            )}
+            <Button variant="outline" onClick={onClose}>Fermer</Button>
           </div>
         </div>
       </DialogContent>

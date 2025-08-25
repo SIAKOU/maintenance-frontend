@@ -10,6 +10,7 @@ import { AuthProvider } from "./contexts/AuthContext.tsx";
 import { TooltipProvider } from "./components/ui/tooltip.tsx";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "next-themes";
 
 // Configuration du client React Query
 const queryClient = new QueryClient({
@@ -35,9 +36,11 @@ root.render(
         <AuthProvider>
           {/* 4. Fournisseur pour les tooltips de Shadcn/UI */}
           <TooltipProvider>
-            <App />
-            <Toaster />
-            <Sonner />
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <App />
+              <Toaster />
+              <Sonner />
+            </ThemeProvider>
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>

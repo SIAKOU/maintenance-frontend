@@ -58,7 +58,6 @@ type DashboardData = {
 // --- FONCTION D'APPEL API (ROBUSTE) ---
 const getDashboardData = async (): Promise<DashboardData> => {
   let recentInterventions: Report[] = [];
-  let upcomingMaintenance: Machine[] = [];
   let allMachines: Machine[] = [];
   let maintenanceSchedules: any[] = [];
   let urgentTasks: any[] = [];
@@ -66,12 +65,10 @@ const getDashboardData = async (): Promise<DashboardData> => {
   try {
     const [
       interventionsResponse, 
-      upcomingMaintResponse, 
       allMachinesResponse,
       maintenanceSchedulesResponse
     ] = await Promise.all([
       api.get<any>("reports?limit=5&sortBy=createdAt:desc").catch(() => null),
-      api.get<any>("machines?limit=5&sortBy=nextMaintenanceDate:asc&status=operational").catch(() => null),
       api.get<any>("machines").catch(() => null),
       api.get<any>("maintenance-schedules?limit=10&sortBy=scheduled_date:asc").catch(() => null),
     ]);
@@ -80,10 +77,6 @@ const getDashboardData = async (): Promise<DashboardData> => {
       recentInterventions = Array.isArray(interventionsResponse)
         ? interventionsResponse
         : interventionsResponse?.reports || [];
-    if (upcomingMaintResponse)
-      upcomingMaintenance = Array.isArray(upcomingMaintResponse)
-        ? upcomingMaintResponse
-        : upcomingMaintResponse?.machines || [];
     if (allMachinesResponse)
       allMachines = Array.isArray(allMachinesResponse)
         ? allMachinesResponse
@@ -93,8 +86,6 @@ const getDashboardData = async (): Promise<DashboardData> => {
         ? maintenanceSchedulesResponse
         : maintenanceSchedulesResponse?.data || [];
 
-    // Calculer les tâches urgentes
-    // Correction : le statut 'pending' n'existe pas pour les interventions, on filtre uniquement par priorité critique
     urgentTasks = [
       ...recentInterventions.filter(r => r.priority === 'critical'),
       ...maintenanceSchedules.filter(m => m.status === 'overdue' || m.priority === 'critical')
@@ -129,7 +120,8 @@ const getDashboardData = async (): Promise<DashboardData> => {
     efficiencyScore
   };
 
-  return { stats, recentInterventions, upcomingMaintenance, maintenanceSchedules, urgentTasks };
+  // Remplacer upcomingMaintenance par allMachines
+  return { stats, recentInterventions, upcomingMaintenance: allMachines, maintenanceSchedules, urgentTasks };
 };
 
 // --- COMPOSANT PRINCIPAL ---
@@ -347,7 +339,7 @@ const MainContentSection = ({
 }) => (
   <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
     <RecentInterventionsCard interventions={recentInterventions} />
-    <UpcomingMaintenanceCard maintenances={upcomingMaintenance} />
+    <MachinesAvailableCard machines={upcomingMaintenance} />
     <MaintenanceSchedulesCard schedules={maintenanceSchedules} />
   </section>
 );
@@ -531,25 +523,21 @@ const RecentInterventionsCard = ({
   );
 };
 
-const UpcomingMaintenanceCard = ({
-  maintenances,
-}: {
-  maintenances: Machine[];
-}) => {
+const MachinesAvailableCard = ({ machines }: { machines: Machine[] }) => {
   const navigate = useNavigate();
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-green-600" />
-          Maintenance à venir
+          <Building2 className="h-5 w-5 text-green-600" />
+          Machines disponibles
         </CardTitle>
-        <CardDescription>Prochaines interventions planifiées.</CardDescription>
+        <CardDescription>Liste de toutes les machines enregistrées.</CardDescription>
       </CardHeader>
       <CardContent>
-        {maintenances.length > 0 ? (
+        {machines.length > 0 ? (
           <div className="space-y-3">
-            {maintenances.map((m) => (
+            {machines.map((m) => (
               <div
                 key={m.id}
                 className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
@@ -557,18 +545,12 @@ const UpcomingMaintenanceCard = ({
               >
                 <div>
                   <p className="font-medium text-gray-800">{m.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Réf: {m.reference}
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Réf: {m.reference}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
-                    {m.nextMaintenanceDate
-                      ? new Date(m.nextMaintenanceDate).toLocaleDateString()
-                      : "N/A"}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{m.status}</p>
                   <Badge variant="outline" className="mt-1">
-                    Programmé
+                    {m.status === 'operational' ? 'Disponible' : m.status}
                   </Badge>
                 </div>
               </div>
@@ -576,12 +558,12 @@ const UpcomingMaintenanceCard = ({
           </div>
         ) : (
           <div className="text-center py-10">
-            <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+            <Building2 className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">
-              Aucune maintenance programmée
+              Aucune machine enregistrée
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              Planifiez une maintenance pour commencer.
+              Ajoutez une machine pour commencer.
             </p>
           </div>
         )}

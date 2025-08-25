@@ -34,10 +34,10 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useNavigate } from "react-router-dom";
-import { getImageUrl } from '@/lib/api';
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import Papa from "papaparse";
+import { getImageUrl, api } from '@/lib/api';
+import { loadPapaParse, loadJsPDF, loadXLSX } from "@/lib/lazyExports";
+// @ts-ignore
+import ExportWorker from '@/workers/exportWorker.ts?worker&inline';
 
 type UserRole = "admin" | "technician" | "administration";
 
@@ -96,6 +96,7 @@ const Settings = () => {
   };
 
   const [user, setUser] = useState<UserData>(defaultUser);
+  const [avatarBust, setAvatarBust] = useState<number>(Date.now());
   const [loading, setLoading] = useState(true);
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     firstName: "",
@@ -292,14 +293,9 @@ const Settings = () => {
     const formData = new FormData();
     formData.append("avatar", file);
     try {
-      const res = await fetch(`/api/users/${authUser.id}`, {
-        method: "PUT",
-        body: formData,
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Erreur lors de l'upload de l'avatar");
-      const data = await res.json();
-      setUser((prev) => ({ ...prev, avatar: data.user.avatar }));
+      const data = await api.put<{ user: any }, any>(`users/${authUser.id}/avatar`, formData);
+      setUser((prev) => ({ ...prev, avatar: (data as any).user.avatar }));
+      setAvatarBust(Date.now());
       toast({ title: "Photo de profil mise à jour" });
       refetchUser();
     } catch (err) {
@@ -309,12 +305,9 @@ const Settings = () => {
   const handleRemoveAvatar = async () => {
     if (!authUser) return;
     try {
-      const res = await fetch(`/api/users/${authUser.id}/avatar`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Erreur lors de la suppression de l'avatar");
+      await api.delete(`users/${authUser.id}/avatar`);
       setUser((prev) => ({ ...prev, avatar: undefined }));
+      setAvatarBust(Date.now());
       toast({ title: "Photo de profil supprimée" });
       refetchUser();
     } catch (err) {
@@ -323,40 +316,46 @@ const Settings = () => {
   };
 
   // --- Fonctions d'export corrigées ---
-  const handleExportPDF = () => {
-    import('jspdf').then(jsPDFModule => {
-      const jsPDF = jsPDFModule.default;
-      const doc = new jsPDF();
-      doc.text("Profil Utilisateur", 14, 16);
-      (doc as any).autoTable({
-        head: [["Champ", "Valeur"]],
-        body: Object.entries(user).map(([k, v]) => [k, String(v ?? "")]),
-      });
-      doc.save("profil.pdf");
-      toast({ title: "Export PDF terminé" });
-    });
+  const handleExportPDF = async () => {
+    const rows = Object.entries(user).map(([k, v]) => [k, String(v ?? "")]);
+    const worker = new ExportWorker();
+    worker.postMessage({ type: 'pdf', payload: { title: 'Profil Utilisateur', headers: [["Champ","Valeur"]], rows } });
+    worker.onmessage = (e: MessageEvent) => {
+      if (e.data?.ok && e.data.blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(e.data.blob);
+        link.download = 'profil.pdf';
+        link.click();
+      }
+      worker.terminate();
+    };
+    toast({ title: "Export PDF terminé" });
   };
-  const handleExportExcel = () => {
-    import('xlsx').then(XLSX => {
-      const worksheet = XLSX.utils.json_to_sheet([user]);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Profil");
-      XLSX.writeFile(workbook, "profil.xlsx");
-      toast({ title: "Export Excel terminé" });
-    });
+  const handleExportExcel = async () => {
+    const worker = new ExportWorker();
+    worker.postMessage({ type: 'xlsx', payload: { sheetName: 'Profil', rows: [user] } });
+    worker.onmessage = (e: MessageEvent) => {
+      if (e.data?.ok && e.data.blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(e.data.blob);
+        link.download = 'profil.xlsx';
+        link.click();
+      }
+      worker.terminate();
+    };
+    toast({ title: "Export Excel terminé" });
   };
-  const handleExportCSV = () => {
-    import('papaparse').then(Papa => {
-      const csv = Papa.unparse([user]);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute("download", "profil.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Export CSV terminé" });
-    });
+  const handleExportCSV = async () => {
+    const Papa = await loadPapaParse();
+    const csv = Papa.unparse([user]);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "profil.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Export CSV terminé" });
   };
   const handleExportJSON = () => {
     const blob = new Blob([JSON.stringify(user, null, 2)], { type: "application/json" });
@@ -416,7 +415,13 @@ const Settings = () => {
             <CardContent className="space-y-6">
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={getImageUrl(user.avatar)} />
+                  <AvatarImage
+                    key={user.avatar || 'no-avatar'}
+                    src={user.avatar ? `${getImageUrl(user.avatar)}?t=${avatarBust}` : undefined}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/placeholder.svg';
+                    }}
+                  />
                   <AvatarFallback className="text-xl font-medium bg-gray-100 dark:bg-gray-800">
                     {getInitials() || "?"}
                   </AvatarFallback>

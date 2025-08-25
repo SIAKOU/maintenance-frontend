@@ -5,7 +5,9 @@ import {
   Route,
   Navigate,
   Outlet,
+  useLocation,
 } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
@@ -34,25 +36,36 @@ const AdminLayout = () => (
 );
 
 const App = () => {
+  const location = useLocation();
   return (
-    <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Navigate to="/" replace />} />
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.15 }}
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
 
-      <Route element={<ProtectedLayout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/machines" element={<Machines />} />
-        <Route path="/maintenance" element={<MaintenanceSchedules />} />
-        <Route path="/settings" element={<SettingsProtected />} />
-      </Route>
+          <Route element={<ProtectedLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/machines" element={<Machines />} />
+            <Route path="/maintenance" element={<MaintenanceSchedules />} />
+            <Route path="/settings" element={<SettingsProtected />} />
+          </Route>
 
-      <Route element={<AdminLayout />}>
-        <Route path="/users" element={<UsersProtected />} />
-      </Route>
+          <Route element={<AdminLayout />}>
+            <Route path="/users" element={<UsersProtected />} />
+          </Route>
 
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

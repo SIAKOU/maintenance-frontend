@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError, User } from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface LoginResponse {
   token: string;
@@ -24,7 +25,11 @@ interface LoginModalProps {
   onLoginSuccess?: () => void;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
+const LoginModal: React.FC<LoginModalProps> = ({
+  isOpen,
+  onClose,
+  onLoginSuccess,
+}) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -56,12 +61,28 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess
       onLoginSuccess?.();
       onClose();
     } catch (error) {
-      const description =
-        error instanceof ApiError &&
-        typeof error.details === "object" &&
-        "message" in error.details && typeof error.details.message === 'string'
-          ? error.details.message
-          : "Email ou mot de passe incorrect.";
+      let description = "Email ou mot de passe incorrect.";
+      if (error instanceof ApiError) {
+        if (
+          typeof error.details === "object" &&
+          "message" in error.details &&
+          typeof error.details.message === "string"
+        ) {
+          description = error.details.message;
+        }
+      } else if (error instanceof TypeError) {
+        // Erreur réseau (fetch échoué, backend inaccessible, CORS, etc.)
+        description =
+          "Impossible de contacter le serveur. Vérifiez votre connexion ou contactez l'administrateur.";
+      } else if (
+        error &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof error.message === "string"
+      ) {
+        // Autre erreur JS
+        description = error.message;
+      }
       toast({
         title: "Erreur de connexion",
         description,
@@ -160,7 +181,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess
               className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-lg font-semibold rounded-xl py-4 shadow-lg hover:shadow-xl transition-all duration-300"
               disabled={isLoading}
             >
-              {isLoading ? "Connexion..." : "Se connecter"}
+              <AnimatePresence initial={false} mode="wait">
+                {isLoading ? (
+                  <motion.span
+                    key="loading"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    Connexion...
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="label"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    Se connecter
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </Button>
           </form>
         </DialogContent>
@@ -200,7 +243,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess
               className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-lg font-semibold rounded-xl py-4 shadow-lg hover:shadow-xl transition-all duration-300"
               disabled={isSending}
             >
-              {isSending ? "Envoi..." : "Envoyer le lien"}
+              <AnimatePresence initial={false} mode="wait">
+                {isSending ? (
+                  <motion.span
+                    key="sending"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    Envoi...
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="send"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    Envoyer le lien
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </Button>
           </form>
         </DialogContent>

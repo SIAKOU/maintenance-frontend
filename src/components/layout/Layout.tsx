@@ -12,6 +12,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +26,7 @@ interface LayoutProps {
 // --- COMPOSANT PRINCIPAL ---
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100">
@@ -39,7 +41,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
           {/* Le padding est maintenant ici pour englober toute la zone de défilement */}
           <div className="py-4 px-2 sm:px-4 md:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">{children}</div>
+            <div className="max-w-7xl mx-auto">
+              <div className="flex justify-end mb-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                >
+                  {theme === "dark" ? "Mode clair" : "Mode sombre"}
+                </Button>
+              </div>
+              {children}
+            </div>
           </div>
         </main>
       </div>
@@ -224,25 +237,37 @@ const LogoutButton = ({ onLogout }: { onLogout: () => void }) => (
   </div>
 );
 
-const MobileHeader = ({ onMenuClick }: { onMenuClick: () => void }) => (
-  <div className="relative z-20 flex-shrink-0 flex h-16 bg-white shadow md:hidden">
-    <button
-      onClick={onMenuClick}
-      className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-      aria-label="Ouvrir la navigation latérale"
-    >
-      <span className="sr-only">Ouvrir la sidebar</span>
-      <Menu className="h-6 w-6" />
-    </button>
-    <div className="flex-1 px-4 flex justify-center">
-      <Link to="/dashboard" className="flex items-center space-x-3">
-        <div className="bg-blue-600 p-2 rounded-lg">
-          <Wrench className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-lg font-bold text-gray-900">MaintenancePro</span>
-      </Link>
+const MobileHeader = ({ onMenuClick }: { onMenuClick: () => void }) => {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="relative z-20 flex-shrink-0 flex h-16 bg-white shadow md:hidden">
+      <button
+        onClick={onMenuClick}
+        className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        aria-label="Ouvrir la navigation latérale"
+      >
+        <span className="sr-only">Ouvrir la sidebar</span>
+        <Menu className="h-6 w-6" />
+      </button>
+      <div className="flex-1 px-4 flex justify-center">
+        <Link to="/dashboard" className="flex items-center space-x-3">
+          <div className="bg-blue-600 p-2 rounded-lg">
+            <Wrench className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-bold text-gray-900">MaintenancePro</span>
+        </Link>
+      </div>
+      <div className="px-4 flex items-center">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? "Clair" : "Sombre"}
+        </Button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default Layout;

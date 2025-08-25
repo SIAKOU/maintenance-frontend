@@ -64,10 +64,9 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { api, Report as ApiReport, Machine as ApiMachine } from "@/lib/api";
-import Papa from "papaparse";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
-import * as XLSX from "xlsx";
+import { loadPapaParse, loadJsPDF, loadXLSX } from "@/lib/lazyExports";
+// @ts-ignore
+import ExportWorker from '@/workers/exportWorker.ts?worker&inline';
 import { getImageUrl } from '@/lib/api';
 
 // --- TYPES & SCHÉMAS ---
@@ -126,7 +125,7 @@ const Reports = () => {
     else setSelectedReports(new Set());
   };
 
-  const handleExport = (format: "csv" | "json" | "pdf") => {
+  const handleExport = async (format: "csv" | "json" | "pdf") => {
     const dataToExport = reports.filter((r) => selectedReports.has(r.id));
     if (dataToExport.length === 0) {
       toast({ title: "Aucune sélection", variant: "destructive" });
@@ -142,6 +141,7 @@ const Reports = () => {
       link.download = "rapports.json";
       link.click();
     } else if (format === "csv") {
+      const Papa = await loadPapaParse();
       const csv = Papa.unparse(dataToExport);
       const blob = new Blob(["\uFEFF" + csv], {
         type: "text/csv;charset=utf-8;",
@@ -151,61 +151,79 @@ const Reports = () => {
       link.setAttribute("download", "rapports.csv");
       link.click();
     } else if (format === "pdf") {
-      const doc = new jsPDF();
-      doc.text("Rapports de Maintenance", 14, 16);
-      (doc as any).autoTable({
-        head: [["ID", "Titre", "Machine", "Date"]],
-        body: dataToExport.map((item) => [
-          item.id,
-          item.title,
-          item.machine?.name || "N/A",
-          new Date(item.workDate).toLocaleDateString(),
-        ]),
-      });
-      doc.save("rapports.pdf");
-    }
-  };
-
-  // --- Ajout des boutons d'export ---
-  const handleExportPDF = () => {
-    const dataToExport = reports.filter((r) => selectedReports.has(r.id));
-    if (dataToExport.length === 0) {
-      toast({ title: "Aucune sélection", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Exportation en cours..." });
-    const doc = new jsPDF();
-    doc.text("Rapports de Maintenance", 14, 16);
-    (doc as any).autoTable({
-      head: [["ID", "Titre", "Machine", "Date"]],
-      body: dataToExport.map((item) => [
+      const worker = new ExportWorker();
+      const rows = dataToExport.map((item) => [
         item.id,
         item.title,
         item.machine?.name || "N/A",
         new Date(item.workDate).toLocaleDateString(),
-      ]),
-    });
-    doc.save("rapports.pdf");
+      ]);
+      worker.postMessage({ type: 'pdf', payload: { title: 'Rapports de Maintenance', headers: [ ["ID","Titre","Machine","Date"] ], rows } });
+      worker.onmessage = (e: MessageEvent) => {
+        if (e.data?.ok && e.data.blob) {
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(e.data.blob);
+          link.download = 'rapports.pdf';
+          link.click();
+        }
+        worker.terminate();
+      };
+    }
   };
-  const handleExportExcel = () => {
+
+  // --- Ajout des boutons d'export ---
+  const handleExportPDF = async () => {
     const dataToExport = reports.filter((r) => selectedReports.has(r.id));
     if (dataToExport.length === 0) {
       toast({ title: "Aucune sélection", variant: "destructive" });
       return;
     }
     toast({ title: "Exportation en cours..." });
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Rapports");
-    XLSX.writeFile(workbook, "rapports.xlsx");
+    const worker = new ExportWorker();
+    const rows = dataToExport.map((item) => [
+      item.id,
+      item.title,
+      item.machine?.name || "N/A",
+      new Date(item.workDate).toLocaleDateString(),
+    ]);
+    worker.postMessage({ type: 'pdf', payload: { title: 'Rapports de Maintenance', headers: [ ["ID","Titre","Machine","Date"] ], rows } });
+    worker.onmessage = (e: MessageEvent) => {
+      if (e.data?.ok && e.data.blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(e.data.blob);
+        link.download = 'rapports.pdf';
+        link.click();
+      }
+      worker.terminate();
+    };
   };
-  const handleExportCSV = () => {
+  const handleExportExcel = async () => {
     const dataToExport = reports.filter((r) => selectedReports.has(r.id));
     if (dataToExport.length === 0) {
       toast({ title: "Aucune sélection", variant: "destructive" });
       return;
     }
     toast({ title: "Exportation en cours..." });
+    const worker = new ExportWorker();
+    worker.postMessage({ type: 'xlsx', payload: { sheetName: 'Rapports', rows: dataToExport } });
+    worker.onmessage = (e: MessageEvent) => {
+      if (e.data?.ok && e.data.blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(e.data.blob);
+        link.download = 'rapports.xlsx';
+        link.click();
+      }
+      worker.terminate();
+    };
+  };
+  const handleExportCSV = async () => {
+    const dataToExport = reports.filter((r) => selectedReports.has(r.id));
+    if (dataToExport.length === 0) {
+      toast({ title: "Aucune sélection", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Exportation en cours..." });
+    const Papa = await loadPapaParse();
     const csv = Papa.unparse(dataToExport);
     const blob = new Blob(["\uFEFF" + csv], {
       type: "text/csv;charset=utf-8;",
