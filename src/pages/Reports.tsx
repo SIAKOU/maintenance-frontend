@@ -241,10 +241,9 @@ const Reports = () => {
     setSelectedReport(report);
     setIsEditModalOpen(true);
   };
-  const handleUpdateReport = (updatedReport: Report) => {
-    // Appeler l'API PUT pour sauvegarder le rapport modifié
+  const handleUpdateReport = () => {
     setIsEditModalOpen(false);
-    // Rafraîchir la liste des rapports
+    // Le rafraîchissement est géré par la mutation dans EditReportModal
   };
 
   return (
@@ -1093,20 +1092,20 @@ const EditReportModal = ({
 };
 
 // --- Galerie d'images avec lightbox améliorée ---
-const ReportDetailGallery = ({ attachments }: { attachments: any[] }) => {
+interface Attachment {
+  id: number;
+  category: 'image' | 'document' | 'video';
+  url: string;
+  filename: string;
+  type: string;
+  size: number;
+}
+
+const ReportDetailGallery = ({ attachments }: { attachments: Attachment[] }) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const images = attachments.filter(a => a.category === 'image');
   
-  if (images.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p>Aucune image attachée</p>
-      </div>
-    );
-  }
-
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = React.useCallback((e: KeyboardEvent) => {
     if (lightboxIndex === null) return;
     
     switch (e.key) {
@@ -1118,6 +1117,26 @@ const ReportDetailGallery = ({ attachments }: { attachments: any[] }) => {
         setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
         break;
       case 'ArrowRight':
+        e.preventDefault();
+        setLightboxIndex((lightboxIndex + 1) % images.length);
+        break;
+    }
+  }, [lightboxIndex, images.length]);
+
+  // Effet pour gérer les événements clavier
+  React.useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  if (images.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+        <p>Aucune image attachée</p>
+      </div>
+    );
+  }
         e.preventDefault();
         setLightboxIndex((lightboxIndex + 1) % images.length);
         break;
