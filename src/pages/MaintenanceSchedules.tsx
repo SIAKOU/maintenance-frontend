@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, Plus, Search, Clock, AlertTriangle, CheckCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,8 +57,9 @@ interface User {
 
 const MaintenanceSchedules: React.FC = () => {
   const [schedules, setSchedules] = useState<MaintenanceSchedule[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [technicians, setTechnicians] = useState<User[]>([]);
+  // États pour les listes déroulantes et les sélections
+  const [machines] = useState<Machine[]>([]);
+  const [technicians] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -73,9 +74,9 @@ const MaintenanceSchedules: React.FC = () => {
   // Charger les données
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData, toast]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [schedulesRes, machinesRes, techniciansRes] = await Promise.all([
@@ -84,9 +85,9 @@ const MaintenanceSchedules: React.FC = () => {
         api.get<{ data: User[] }>('/users?role=technician')
       ]);
 
-      setSchedules(schedulesRes.data || []);
-      setMachines(machinesRes.data || []);
-      setTechnicians(techniciansRes.data || []);
+      setSchedules(schedulesRes.data?.data || []);
+      setMachines(machinesRes.data?.data || []);
+      setTechnicians(techniciansRes.data?.data || []);
     } catch (error) {
       toast({
         title: "Erreur",
@@ -96,7 +97,7 @@ const MaintenanceSchedules: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Filtrer les maintenances
   const filteredSchedules = (schedules || []).filter(schedule => {

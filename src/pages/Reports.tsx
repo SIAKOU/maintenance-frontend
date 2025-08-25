@@ -64,8 +64,8 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { api, Report as ApiReport, Machine as ApiMachine } from "@/lib/api";
-import { loadPapaParse, loadJsPDF, loadXLSX } from "@/lib/lazyExports";
-// @ts-ignore
+import { loadPapaParse } from "@/lib/lazyExports";
+// @ts-expect-error Worker import with Vite
 import ExportWorker from '@/workers/exportWorker.ts?worker&inline';
 import { getImageUrl } from '@/lib/api';
 
